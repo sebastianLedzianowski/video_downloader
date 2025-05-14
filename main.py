@@ -1,14 +1,27 @@
 import yt_dlp as youtube_dl
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+import re
+
+
+def strip_ansi(s):
+    """Usuwa sekwencje ANSI (np. kolory z terminala)"""
+    return re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', s)
 
 
 def download_video(url, save_path):
     ydl_opts = {
         'outtmpl': save_path,
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'bv*+ba/b',
         'merge_output_format': 'mp4',
-        'progress_hooks': [progress_hook]
+        'progress_hooks': [progress_hook],
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        },
+        'downloader_args': {
+            'http': ['--impersonate', 'chrome'],
+        },
+        'nocolor': True  # opcjonalnie, by wyłączyć kolory ANSI
     }
 
     try:
@@ -26,12 +39,18 @@ def download_video(url, save_path):
 
 def progress_hook(d):
     if d['status'] == 'downloading':
-        percent = d.get('_percent_str', '0.00%').strip('%')
-        progress_bar['value'] = float(percent)
-        speed = d.get('_speed_str', 'N/A')
-        eta = d.get('_eta_str', 'N/A')
-        status_message.set(f"Downloading: {percent}% at {speed}, ETA: {eta}")
+        percent_str = d.get('_percent_str', '0.00%')
+        percent_clean = strip_ansi(percent_str).strip('%')
+        try:
+            progress_bar['value'] = float(percent_clean)
+        except ValueError:
+            progress_bar['value'] = 0
+
+        speed = strip_ansi(d.get('_speed_str', 'N/A'))
+        eta = strip_ansi(d.get('_eta_str', 'N/A'))
+        status_message.set(f"Downloading: {percent_clean}% at {speed}, ETA: {eta}")
         root.update_idletasks()
+
     elif d['status'] == 'finished':
         status_message.set("Merging video and audio...")
 
